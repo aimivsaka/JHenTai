@@ -107,12 +107,13 @@ class ArchiveDownloadService extends GetxController with GridBasePageServiceMixi
       await _doDownloadArchive(archive);
     }
 
+    //* auto-unpacking is a useless function for me :)
     /// step 5: unpacking files, check status in case of a resume
-    if (archive.archiveStatusIndex <= ArchiveStatus.unpacking.index && !_taskHasBeenPausedOrRemoved(archive)) {
-      await _unpackingArchive(archive);
-    }
+    //if (archive.archiveStatusIndex <= ArchiveStatus.unpacking.index && !_taskHasBeenPausedOrRemoved(archive)) {
+    //  await _unpackingArchive(archive);
+    //}
 
-    _saveArchiveInfoInDisk(archive);
+    //_saveArchiveInfoInDisk(archive);
   }
 
   Future<void> deleteArchiveByGid(int gid) async {

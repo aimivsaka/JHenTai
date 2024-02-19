@@ -67,7 +67,8 @@ class _SettingDownloadPageState extends State<SettingDownloadPage> {
               _buildDownloadConcurrency(),
               _buildSpeedLimit(context),
               _buildDownloadAllGallerysOfSamePriority(),
-              _buildDeleteArchiveFileAfterDownload(),
+              // I don't need this functionality :)
+              //_buildDeleteArchiveFileAfterDownload(),
               _buildRestore(),
             ],
           ).withListTileTheme(context),
