@@ -81,12 +81,7 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
         id: DetailsPageLogic.galleryId,
         global: false,
         init: logic,
-        builder: (_) {
-          if (state.gallery == null) {
-            return const Text('');
-          }
-          return Text(state.gallery!.title.breakWord, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold));
-        },
+        builder: (_) => Text(_mainTitleText, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
       ),
       actions: [
         _buildMenuButton(context),
@@ -94,13 +89,21 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
     );
   }
 
+  String get _mainTitleText =>
+      state.gallery?.title.breakWord ??
+      state.galleryDetails?.japaneseTitle?.breakWord ??
+      state.galleryDetails?.rawTitle.breakWord ??
+      state.galleryMetadata?.japaneseTitle ??
+      state.galleryMetadata?.title ??
+      '';
+
   Widget _buildMenuButton(BuildContext context) {
     return GetBuilder<DetailsPageLogic>(
       id: DetailsPageLogic.detailsId,
       global: false,
       init: logic,
       builder: (_) {
-        if (state.galleryDetails == null) {
+        if (state.galleryDetails == null && state.galleryMetadata == null) {
           return const SizedBox();
         }
 
@@ -115,13 +118,14 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
               return PopupMenuButton(
                 itemBuilder: (context) {
                   return [
-                    PopupMenuItem(
-                      value: 0,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [Text('jump'.tr), const Icon(FontAwesomeIcons.paperPlane, size: 20)],
+                    if (state.galleryDetails != null)
+                      PopupMenuItem(
+                        value: 0,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [Text('jump'.tr), const Icon(FontAwesomeIcons.paperPlane, size: 20)],
+                        ),
                       ),
-                    ),
                     PopupMenuItem(
                       value: 1,
                       child: Row(
@@ -129,13 +133,14 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
                         children: [Text('share'.tr), const Icon(Icons.share)],
                       ),
                     ),
-                    PopupMenuItem(
-                      value: 2,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [Text('addTag'.tr), const Icon(Icons.bookmark_border)],
+                    if (state.galleryDetails != null)
+                      PopupMenuItem(
+                        value: 2,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [Text('addTag'.tr), const Icon(Icons.bookmark_border)],
+                        ),
                       ),
-                    ),
                     if (downloadProgress != null || archiveStatus != null)
                       PopupMenuItem(
                         value: 3,
@@ -144,8 +149,7 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
                           children: [Text('delete'.tr), const Icon(Icons.delete)],
                         ),
                       ),
-                    if (state.gallery != null &&
-                        (state.galleryDetails?.parentGalleryUrl != null || (state.galleryDetails?.childrenGallerys?.isNotEmpty ?? false)))
+                    if (state.galleryDetails?.parentGalleryUrl != null || (state.galleryDetails?.childrenGallerys?.isNotEmpty ?? false))
                       PopupMenuItem(
                         value: 4,
                         child: Row(
@@ -168,7 +172,7 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
                   if (value == 3) {
                     logic.handleTapDeleteDownload(
                       context,
-                      state.gallery!.gid,
+                      state.galleryUrl.gid,
                       downloadProgress != null ? DownloadPageGalleryType.download : DownloadPageGalleryType.archive,
                     );
                   }
@@ -200,6 +204,7 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
             buildNewVersionHint(),
             buildActions(context),
             buildLoadingDetailsIndicator(),
+            buildCopyRightRemovedHint(),
             buildTags(),
             if (PreferenceSetting.showComments.isTrue) buildComments(),
             buildThumbnails(),
@@ -232,7 +237,9 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
       global: false,
       init: logic,
       builder: (_) {
-        if (state.gallery == null) {
+        GalleryImage? cover = state.galleryDetails?.cover ?? state.gallery?.cover ?? state.galleryMetadata?.cover;
+
+        if (cover == null) {
           return Container(
             height: UIConfig.detailsPageCoverHeight,
             width: UIConfig.detailsPageCoverWidth,
@@ -242,13 +249,13 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
         }
 
         return GestureDetector(
-          onTap: () => toRoute(Routes.singleImagePage, arguments: state.gallery!.cover),
+          onTap: () => toRoute(Routes.singleImagePage, arguments: cover),
           child: EHImage(
-            galleryImage: state.gallery!.cover,
+            galleryImage: cover,
             containerHeight: UIConfig.detailsPageCoverHeight,
             containerWidth: UIConfig.detailsPageCoverWidth,
             borderRadius: BorderRadius.circular(UIConfig.detailsPageCoverBorderRadius),
-            heroTag: state.gallery!.cover,
+            heroTag: cover,
             shadows: [
               BoxShadow(
                 color: UIConfig.detailPageCoverShadowColor(context),
@@ -283,14 +290,10 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
       global: false,
       init: logic,
       builder: (_) {
-        if (state.gallery == null) {
-          return const SizedBox();
-        }
-
         return ScrollConfiguration(
           behavior: UIConfig.scrollBehaviourWithoutScrollBarWithMouse,
           child: SelectableText(
-            state.gallery!.title,
+            _mainTitleText,
             minLines: 1,
             maxLines: 5,
             style: const TextStyle(
@@ -335,15 +338,19 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
           global: false,
           init: logic,
           builder: (_) {
-            if (state.gallery == null || state.galleryDetails == null) {
+            if (state.galleryDetails == null && state.galleryMetadata == null) {
               return const AnimatedSwitcher(duration: Duration(milliseconds: UIConfig.detailsPageAnimationDuration), child: SizedBox());
             }
 
             String? subTitle;
-            if (state.galleryDetails!.rawTitle != state.gallery!.title) {
-              subTitle = state.galleryDetails!.rawTitle;
-            } else if (state.galleryDetails!.japaneseTitle != null && state.galleryDetails!.japaneseTitle != state.gallery!.title) {
-              subTitle = state.galleryDetails!.japaneseTitle;
+            if (state.galleryDetails?.japaneseTitle != null && state.galleryDetails!.japaneseTitle!.breakWord != _mainTitleText) {
+              subTitle = state.galleryDetails!.rawTitle.breakWord;
+            } else if (state.galleryDetails?.japaneseTitle != null && state.galleryDetails!.japaneseTitle!.breakWord != _mainTitleText) {
+              subTitle = state.galleryDetails!.japaneseTitle!.breakWord;
+            } else if (state.galleryMetadata?.title != null && state.galleryMetadata!.title.breakWord != _mainTitleText) {
+              subTitle = state.galleryMetadata!.title.breakWord;
+            } else if (state.galleryMetadata?.japaneseTitle != null && state.galleryMetadata!.japaneseTitle.breakWord != _mainTitleText) {
+              subTitle = state.galleryMetadata!.japaneseTitle.breakWord;
             }
 
             if (subTitle == null) {
@@ -353,7 +360,7 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
             return AnimatedSwitcher(
               duration: const Duration(milliseconds: UIConfig.detailsPageAnimationDuration),
               child: SelectableText(
-                '[Izure] Iede Gal na Senpai wa Kantan ni Yarasete Kureru [Digital] [Chinese] [Localized by Antares] [Localized by Antares] [Localized by Antares] [Localized by Antares]',
+                subTitle,
                 minLines: 1,
                 maxLines: 2,
                 style: UIConfig.detailsPageSubTitleTextStyle(context),
@@ -391,12 +398,8 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
       global: false,
       init: logic,
       builder: (_) {
-        if (state.gallery?.uploader == null) {
-          return const SizedBox();
-        }
-
         return SelectableText(
-          state.gallery!.uploader!,
+          state.galleryDetails?.uploader ?? state.gallery?.uploader ?? state.galleryMetadata?.uploader ?? '',
           style: TextStyle(fontSize: UIConfig.detailsPageUploaderTextSize, color: UIConfig.detailsPageUploaderTextColor(context)),
           onTap: logic.searchUploader,
         );
@@ -408,8 +411,8 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {
-        if (state.gallery != null && state.galleryDetails != null) {
-          Get.dialog(EHGalleryDetailDialog(gallery: state.gallery!, galleryDetail: state.galleryDetails!));
+        if (state.galleryDetails != null) {
+          Get.dialog(EHGalleryDetailDialog(galleryDetail: state.galleryDetails!));
         }
       },
       child: StyleSetting.isInMobileLayout ? _buildInfoInThreeRows(context) : _buildInfoInTwoRows(),
@@ -499,6 +502,8 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
           language = state.gallery!.language!.capitalizeFirst!;
         } else if (state.gallery?.tags.isNotEmpty ?? false) {
           language = 'Japanese';
+        } else if (state.galleryMetadata?.language != null) {
+          language = state.galleryMetadata!.language.capitalizeFirst!;
         } else {
           language = '...';
         }
@@ -550,21 +555,25 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
       id: DetailsPageLogic.detailsId,
       global: false,
       init: logic,
-      builder: (_) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.archive, size: iconSize, color: UIConfig.detailsPageIconColor(context)),
-          SizedBox(width: space),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: UIConfig.detailsPageAnimationDuration),
-            child: Text(
-              state.galleryDetails?.size ?? '...',
-              key: ValueKey(state.galleryDetails?.size ?? '...'),
-              style: const TextStyle(fontSize: UIConfig.detailsPageInfoTextSize),
-            ),
-          )
-        ],
-      ),
+      builder: (_) {
+        String size = state.galleryDetails?.size ?? state.galleryMetadata?.size ?? '...';
+
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.archive, size: iconSize, color: UIConfig.detailsPageIconColor(context)),
+            SizedBox(width: space),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: UIConfig.detailsPageAnimationDuration),
+              child: Text(
+                size,
+                key: ValueKey(size),
+                style: const TextStyle(fontSize: UIConfig.detailsPageInfoTextSize),
+              ),
+            )
+          ],
+        );
+      },
     );
   }
 
@@ -573,21 +582,26 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
       id: DetailsPageLogic.pageCountId,
       global: false,
       init: logic,
-      builder: (_) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.collections, size: iconSize, color: UIConfig.detailsPageIconColor(context)),
-          SizedBox(width: space),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: UIConfig.detailsPageAnimationDuration),
-            child: Text(
-              state.gallery?.pageCount?.toString() ?? '...',
-              key: ValueKey(state.gallery?.pageCount?.toString() ?? '...'),
-              style: const TextStyle(fontSize: UIConfig.detailsPageInfoTextSize),
-            ),
-          )
-        ],
-      ),
+      builder: (_) {
+        String pageCount =
+            state.galleryDetails?.pageCount.toString() ?? state.gallery?.pageCount?.toString() ?? state.galleryMetadata?.pageCount.toString() ?? '...';
+
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.collections, size: iconSize, color: UIConfig.detailsPageIconColor(context)),
+            SizedBox(width: space),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: UIConfig.detailsPageAnimationDuration),
+              child: Text(
+                pageCount,
+                key: ValueKey(pageCount),
+                style: const TextStyle(fontSize: UIConfig.detailsPageInfoTextSize),
+              ),
+            )
+          ],
+        );
+      },
     );
   }
 
@@ -596,21 +610,25 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
       id: DetailsPageLogic.detailsId,
       global: false,
       init: logic,
-      builder: (_) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.star, size: iconSize, color: UIConfig.detailsPageIconColor(context)),
-          SizedBox(width: space),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: UIConfig.detailsPageAnimationDuration),
-            child: Text(
-              state.galleryDetails?.ratingCount.toString() ?? '...',
-              key: ValueKey(state.galleryDetails?.ratingCount.toString() ?? '...'),
-              style: const TextStyle(fontSize: UIConfig.detailsPageInfoTextSize),
-            ),
-          )
-        ],
-      ),
+      builder: (_) {
+        String ratingCount = state.galleryDetails?.ratingCount.toString() ?? '...';
+
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.star, size: iconSize, color: UIConfig.detailsPageIconColor(context)),
+            SizedBox(width: space),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: UIConfig.detailsPageAnimationDuration),
+              child: Text(
+                ratingCount,
+                key: ValueKey(ratingCount),
+                style: const TextStyle(fontSize: UIConfig.detailsPageInfoTextSize),
+              ),
+            )
+          ],
+        );
+      },
     );
   }
 
@@ -619,21 +637,31 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
       id: DetailsPageLogic.galleryId,
       global: false,
       init: logic,
-      builder: (_) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.cloud_upload, size: iconSize, color: UIConfig.detailsPageIconColor(context)),
-          SizedBox(width: space),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: UIConfig.detailsPageAnimationDuration),
-            child: Text(
-              state.gallery == null ? '...' : DateUtil.transform2LocalTimeString(state.gallery!.publishTime),
-              key: ValueKey(state.gallery == null ? 'null' : 'nonNull'),
-              style: const TextStyle(fontSize: UIConfig.detailsPageInfoTextSize),
-            ),
-          )
-        ],
-      ),
+      builder: (_) {
+        String time = state.galleryDetails != null
+            ? DateUtil.transform2LocalTimeString(state.galleryDetails!.publishTime)
+            : state.gallery != null
+                ? DateUtil.transform2LocalTimeString(state.gallery!.publishTime)
+                : state.galleryMetadata != null
+                    ? DateUtil.transform2LocalTimeString(state.galleryMetadata!.publishTime)
+                    : '...';
+
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.cloud_upload, size: iconSize, color: UIConfig.detailsPageIconColor(context)),
+            SizedBox(width: space),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: UIConfig.detailsPageAnimationDuration),
+              child: Text(
+                time,
+                key: ValueKey(time),
+                style: const TextStyle(fontSize: UIConfig.detailsPageInfoTextSize),
+              ),
+            )
+          ],
+        );
+      },
     );
   }
 
@@ -654,35 +682,40 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
       id: DetailsPageLogic.ratingId,
       global: false,
       init: logic,
-      builder: (_) => AnimatedSwitcher(
-        duration: const Duration(milliseconds: UIConfig.detailsPageAnimationDuration),
-        child: state.gallery == null
-            ? RatingBar.builder(
-                unratedColor: UIConfig.galleryRatingStarUnRatedColor(context),
-                initialRating: 0,
-                itemCount: 5,
-                allowHalfRating: true,
-                itemSize: 16,
-                ignoreGestures: true,
-                itemBuilder: (context, index) => const Icon(Icons.star),
-                onRatingUpdate: (_) {},
-              )
-            : KeyedSubtree(
-                child: RatingBar.builder(
+      builder: (_) {
+        double? rating = state.galleryDetails?.rating ?? state.gallery?.rating ?? state.galleryMetadata?.rating;
+        bool hasRated = state.galleryDetails?.hasRated ?? state.gallery?.hasRated ?? false;
+
+        return AnimatedSwitcher(
+          duration: const Duration(milliseconds: UIConfig.detailsPageAnimationDuration),
+          child: rating == null
+              ? RatingBar.builder(
                   unratedColor: UIConfig.galleryRatingStarUnRatedColor(context),
-                  initialRating: state.gallery!.rating,
+                  initialRating: 0,
                   itemCount: 5,
                   allowHalfRating: true,
                   itemSize: 16,
                   ignoreGestures: true,
-                  itemBuilder: (context, index) => Icon(
-                    Icons.star,
-                    color: state.gallery!.hasRated ? UIConfig.galleryRatingStarRatedColor(context) : UIConfig.galleryRatingStarColor,
-                  ),
+                  itemBuilder: (context, index) => const Icon(Icons.star),
                   onRatingUpdate: (_) {},
+                )
+              : KeyedSubtree(
+                  child: RatingBar.builder(
+                    unratedColor: UIConfig.galleryRatingStarUnRatedColor(context),
+                    initialRating: rating,
+                    itemCount: 5,
+                    allowHalfRating: true,
+                    itemSize: 16,
+                    ignoreGestures: true,
+                    itemBuilder: (context, index) => Icon(
+                      Icons.star,
+                      color: hasRated ? UIConfig.galleryRatingStarRatedColor(context) : UIConfig.galleryRatingStarColor,
+                    ),
+                    onRatingUpdate: (_) {},
+                  ),
                 ),
-              ),
-      ),
+        );
+      },
     );
   }
 
@@ -691,14 +724,18 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
       id: DetailsPageLogic.detailsId,
       global: false,
       init: logic,
-      builder: (_) => AnimatedSwitcher(
-        duration: const Duration(milliseconds: UIConfig.detailsPageAnimationDuration),
-        child: Text(
-          state.galleryDetails?.realRating.toString() ?? '...',
-          key: Key(state.galleryDetails?.realRating.toString() ?? '...'),
-          style: const TextStyle(fontSize: UIConfig.detailsPageRatingTextSize),
-        ),
-      ),
+      builder: (_) {
+        String realRating = state.galleryDetails?.realRating.toString() ?? state.galleryMetadata?.rating.toString() ?? '...';
+
+        return AnimatedSwitcher(
+          duration: const Duration(milliseconds: UIConfig.detailsPageAnimationDuration),
+          child: Text(
+            realRating,
+            key: Key(realRating),
+            style: const TextStyle(fontSize: UIConfig.detailsPageRatingTextSize),
+          ),
+        );
+      },
     );
   }
 
@@ -707,23 +744,27 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
       id: DetailsPageLogic.galleryId,
       global: false,
       init: logic,
-      builder: (_) => AnimatedSwitcher(
-        duration: const Duration(milliseconds: UIConfig.detailsPageAnimationDuration),
-        child: state.gallery == null
-            ? const EHGalleryCategoryTag(
-                enabled: false,
-                category: '               ',
-                padding: EdgeInsets.only(top: 2, bottom: 4, left: 4, right: 4),
-                textStyle: TextStyle(fontSize: UIConfig.detailsPageRatingTextSize, color: UIConfig.galleryCategoryTagTextColor, height: 1),
-                borderRadius: 3,
-              )
-            : EHGalleryCategoryTag(
-                category: state.gallery!.category,
-                padding: const EdgeInsets.only(top: 2, bottom: 4, left: 4, right: 4),
-                textStyle: const TextStyle(fontSize: UIConfig.detailsPageRatingTextSize, color: UIConfig.galleryCategoryTagTextColor, height: 1),
-                borderRadius: 3,
-              ),
-      ),
+      builder: (_) {
+        String? category = state.galleryDetails?.category ?? state.gallery?.category ?? state.galleryMetadata?.category;
+
+        return AnimatedSwitcher(
+          duration: const Duration(milliseconds: UIConfig.detailsPageAnimationDuration),
+          child: category == null
+              ? const EHGalleryCategoryTag(
+                  enabled: false,
+                  category: '               ',
+                  padding: EdgeInsets.only(top: 2, bottom: 4, left: 4, right: 4),
+                  textStyle: TextStyle(fontSize: UIConfig.detailsPageRatingTextSize, color: UIConfig.galleryCategoryTagTextColor, height: 1),
+                  borderRadius: 3,
+                )
+              : EHGalleryCategoryTag(
+                  category: category,
+                  padding: const EdgeInsets.only(top: 2, bottom: 4, left: 4, right: 4),
+                  textStyle: const TextStyle(fontSize: UIConfig.detailsPageRatingTextSize, color: UIConfig.galleryCategoryTagTextColor, height: 1),
+                  borderRadius: 3,
+                ),
+        );
+      },
     );
   }
 
@@ -799,7 +840,7 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
       global: false,
       init: logic,
       builder: (_) {
-        bool disabled = state.gallery?.pageCount == null;
+        bool disabled = state.galleryDetails?.pageCount == null && state.gallery?.pageCount == null && state.galleryMetadata?.pageCount == null;
 
         return GetBuilder<DetailsPageLogic>(
           id: DetailsPageLogic.readButtonId,
@@ -837,11 +878,12 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
       global: false,
       init: logic,
       builder: (_) {
-        bool disabled = state.gallery?.pageCount == null;
+        bool disabled = state.galleryDetails?.pageCount == null && state.gallery?.pageCount == null;
+
         return GetBuilder<GalleryDownloadService>(
-          id: '${Get.find<GalleryDownloadService>().galleryDownloadProgressId}::${state.gallery?.gid}',
+          id: '${Get.find<GalleryDownloadService>().galleryDownloadProgressId}::${state.galleryUrl.gid}',
           builder: (_) {
-            GalleryDownloadProgress? downloadProgress = logic.galleryDownloadService.galleryDownloadInfos[state.gallery?.gid]?.downloadProgress;
+            GalleryDownloadProgress? downloadProgress = logic.galleryDownloadService.galleryDownloadInfos[state.galleryUrl.gid]?.downloadProgress;
 
             String text = downloadProgress == null
                 ? 'download'.tr
@@ -889,7 +931,9 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
       global: false,
       init: logic,
       builder: (_) {
-        bool disabled = state.gallery == null;
+        bool disabled = state.galleryDetails == null && state.gallery == null;
+        int? favoriteTagIndex = state.galleryDetails?.favoriteTagIndex ?? state.gallery?.favoriteTagIndex;
+        String? favoriteTagName = state.galleryDetails?.favoriteTagName ?? state.gallery?.favoriteTagName;
 
         return GetBuilder<DetailsPageLogic>(
           id: DetailsPageLogic.addFavoriteStateId,
@@ -900,15 +944,15 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
             idleWidget: IconTextButton(
               width: UIConfig.detailsPageActionExtent,
               icon: Icon(
-                state.gallery?.favoriteTagIndex != null ? Icons.favorite : Icons.favorite_border,
+                favoriteTagIndex != null ? Icons.favorite : Icons.favorite_border,
                 color: disabled
                     ? UIConfig.detailsPageActionDisabledIconColor(context)
-                    : state.gallery?.favoriteTagIndex != null
-                        ? ColorConsts.favoriteTagColor[state.gallery!.favoriteTagIndex!]
+                    : favoriteTagIndex != null
+                        ? ColorConsts.favoriteTagColor[favoriteTagIndex]
                         : UIConfig.detailsPageActionIconColor(context),
               ),
               text: Text(
-                (state.gallery?.isFavorite ?? false) ? state.gallery!.favoriteTagName! : 'favorite'.tr,
+                favoriteTagName ?? 'favorite'.tr,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -933,7 +977,9 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
       global: false,
       init: logic,
       builder: (_) {
-        bool disabled = state.gallery == null;
+        bool disabled = state.galleryDetails == null && state.gallery == null;
+        bool hasRated = state.galleryDetails?.hasRated ?? state.gallery?.hasRated ?? false;
+        double? rating = state.galleryDetails?.rating ?? state.gallery?.rating;
 
         return GetBuilder<DetailsPageLogic>(
           id: DetailsPageLogic.ratingStateId,
@@ -945,15 +991,15 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
               idleWidget: IconTextButton(
                 width: UIConfig.detailsPageActionExtent,
                 icon: Icon(
-                  (state.gallery?.hasRated ?? false) ? Icons.star : Icons.star_border,
+                  hasRated ? Icons.star : Icons.star_border,
                   color: disabled
                       ? UIConfig.detailsPageActionDisabledIconColor(context)
-                      : (state.gallery?.hasRated ?? false)
+                      : hasRated
                           ? UIConfig.alertColor(context)
                           : UIConfig.detailsPageActionIconColor(context),
                 ),
                 text: Text(
-                  (state.gallery?.hasRated ?? false) ? state.gallery!.rating.toString() : 'rating'.tr,
+                  hasRated ? rating!.toString() : 'rating'.tr,
                   style: TextStyle(
                     fontSize: UIConfig.detailsPageActionTextSize,
                     color: disabled ? UIConfig.detailsPageActionDisabledIconColor(context) : UIConfig.detailsPageActionTextColor(context),
@@ -979,9 +1025,9 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
         bool disabled = state.galleryDetails == null;
 
         return GetBuilder<ArchiveDownloadService>(
-          id: '${ArchiveDownloadService.archiveStatusId}::${state.gallery?.gid}',
+          id: '${ArchiveDownloadService.archiveStatusId}::${state.galleryUrl.gid}',
           builder: (_) {
-            ArchiveStatus? archiveStatus = Get.find<ArchiveDownloadService>().archiveDownloadInfos[state.gallery?.gid]?.archiveStatus;
+            ArchiveStatus? archiveStatus = Get.find<ArchiveDownloadService>().archiveDownloadInfos[state.galleryUrl.gid]?.archiveStatus;
 
             String text = archiveStatus == null ? 'archive'.tr : archiveStatus.name.tr;
 
@@ -1045,7 +1091,7 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
       global: false,
       init: logic,
       builder: (_) {
-        bool disabled = state.galleryDetails == null;
+        bool disabled = state.galleryDetails == null && state.galleryMetadata == null;
 
         return IconTextButton(
           width: UIConfig.detailsPageActionExtent,
@@ -1131,6 +1177,26 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
     );
   }
 
+  Widget buildCopyRightRemovedHint() {
+    return SliverToBoxAdapter(
+      child: GetBuilder<DetailsPageLogic>(
+        id: DetailsPageLogic.metadataId,
+        global: false,
+        init: logic,
+        builder: (_) {
+          if (state.galleryMetadata == null || state.copyRighter == null) {
+            return const SizedBox();
+          }
+          return Container(
+            height: UIConfig.detailsPageCopyRightRemovedHintHeight,
+            alignment: Alignment.center,
+            child: Text(state.copyRighter!, style: const TextStyle(fontSize: UIConfig.detailsPageCopyRightRemovedHintTextSize)),
+          ).fadeIn().marginSymmetric(horizontal: UIConfig.detailPagePadding);
+        },
+      ),
+    );
+  }
+
   Widget buildTags() {
     return SliverToBoxAdapter(
       child: GetBuilder<DetailsPageLogic>(
@@ -1138,19 +1204,59 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
         global: false,
         init: logic,
         builder: (_) {
-          if (state.galleryDetails?.fullTags.isEmpty ?? true) {
+          if (state.galleryDetails?.tags.isEmpty ?? true) {
             return const SizedBox();
           }
 
-          return _GalleryTags(
-            tagList: state.galleryDetails!.fullTags,
-            gid: state.gallery!.gid,
-            token: state.gallery!.token,
-            apikey: state.apikey!,
+          return Column(
+            children: state.galleryDetails!.tags.entries
+                .map(
+                  (entry) => Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildCategoryTag(entry.key),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Wrap(
+                          spacing: 5,
+                          runSpacing: 5,
+                          children: _buildSubTags(entry.value),
+                        ),
+                      ),
+                    ],
+                  ).marginOnly(top: 10),
+                )
+                .toList(),
           ).fadeIn().marginSymmetric(horizontal: UIConfig.detailPagePadding);
         },
       ),
     );
+  }
+
+  Widget _buildCategoryTag(String category) {
+    return EHTag(
+      tag: GalleryTag(
+        tagData: TagData(
+          namespace: 'rows',
+          key: category,
+          tagName: PreferenceSetting.enableTagZHTranslation.isTrue ? LocaleConsts.tagNamespace[category] : null,
+        ),
+      ),
+      addNameSpaceColor: true,
+    );
+  }
+
+  List<Widget> _buildSubTags(List<GalleryTag> tags) {
+    return tags
+        .map((tag) => EHTag(
+              tag: tag,
+              enableTapping: true,
+              gid: state.galleryUrl.gid,
+              token: state.galleryUrl.token,
+              apikey: state.apikey,
+              forceNewRoute: true,
+            ))
+        .toList();
   }
 
   Widget buildComments() {
@@ -1213,65 +1319,67 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
         init: logic,
         builder: (_) => SliverPadding(
           padding: const EdgeInsets.only(top: 36, left: UIConfig.detailPagePadding, right: UIConfig.detailPagePadding),
-          sliver: SliverGrid(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                if (index == state.galleryDetails!.thumbnails.length - 1 && state.loadingThumbnailsState == LoadingState.idle) {
-                  SchedulerBinding.instance.addPostFrameCallback((_) {
-                    logic.loadMoreThumbnails();
-                  });
-                }
+          sliver: state.galleryDetails == null
+              ? const SliverToBoxAdapter()
+              : SliverGrid(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      if (index == state.galleryDetails!.thumbnails.length - 1 && state.loadingThumbnailsState == LoadingState.idle) {
+                        SchedulerBinding.instance.addPostFrameCallback((_) {
+                          logic.loadMoreThumbnails();
+                        });
+                      }
 
-                GalleryImage? downloadedImage = logic.galleryDownloadService.galleryDownloadInfos[state.gallery?.gid]?.images[index];
+                      GalleryImage? downloadedImage = logic.galleryDownloadService.galleryDownloadInfos[state.galleryUrl.gid]?.images[index];
 
-                return KeepAliveWrapper(
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: Center(
-                          child: GestureDetector(
-                            onTap: () => logic.goToReadPage(index),
-                            child: LayoutBuilder(
-                              builder: (_, constraints) => downloadedImage?.downloadStatus == DownloadStatus.downloaded
-                                  ? EHImage(
-                                      galleryImage: downloadedImage!,
-                                      containerHeight: constraints.maxHeight,
-                                      containerWidth: constraints.maxWidth,
-                                      borderRadius: BorderRadius.circular(8),
-                                      maxBytes: 1024 * 1024,
-                                    )
-                                  : EHThumbnail(
-                                      thumbnail: state.galleryDetails!.thumbnails[index],
-                                      containerHeight: constraints.maxHeight,
-                                      containerWidth: constraints.maxWidth,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
+                      return KeepAliveWrapper(
+                        child: Column(
+                          children: [
+                            Expanded(
+                              child: Center(
+                                child: GestureDetector(
+                                  onTap: () => logic.goToReadPage(index),
+                                  child: LayoutBuilder(
+                                    builder: (_, constraints) => downloadedImage?.downloadStatus == DownloadStatus.downloaded
+                                        ? EHImage(
+                                            galleryImage: downloadedImage!,
+                                            containerHeight: constraints.maxHeight,
+                                            containerWidth: constraints.maxWidth,
+                                            borderRadius: BorderRadius.circular(8),
+                                            maxBytes: 1024 * 1024,
+                                          )
+                                        : EHThumbnail(
+                                            thumbnail: state.galleryDetails!.thumbnails[index],
+                                            containerHeight: constraints.maxHeight,
+                                            containerWidth: constraints.maxWidth,
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
+                            const SizedBox(height: 3),
+                            Text((index + 1).toString(), style: TextStyle(color: UIConfig.detailsPageThumbnailIndexColor(context))),
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text((index + 1).toString(), style: TextStyle(color: UIConfig.detailsPageThumbnailIndexColor(context))),
-                    ],
+                      );
+                    },
+                    childCount: state.galleryDetails?.thumbnails.length ?? 0,
                   ),
-                );
-              },
-              childCount: state.galleryDetails?.thumbnails.length ?? 0,
-            ),
-            gridDelegate: StyleSetting.crossAxisCountInDetailPage.value == null
-                ? const SliverGridDelegateWithMaxCrossAxisExtent(
-                    mainAxisExtent: UIConfig.detailsPageThumbnailHeight,
-                    maxCrossAxisExtent: UIConfig.detailsPageThumbnailWidth,
-                    mainAxisSpacing: 20,
-                    crossAxisSpacing: 5,
-                  )
-                : SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: StyleSetting.crossAxisCountInDetailPage.value!,
-                    mainAxisSpacing: 20,
-                    crossAxisSpacing: 5,
-                    childAspectRatio: UIConfig.detailsPageGridViewCardAspectRatio,
-                  ),
-          ),
+                  gridDelegate: StyleSetting.crossAxisCountInDetailPage.value == null
+                      ? const SliverGridDelegateWithMaxCrossAxisExtent(
+                          mainAxisExtent: UIConfig.detailsPageThumbnailHeight,
+                          maxCrossAxisExtent: UIConfig.detailsPageThumbnailWidth,
+                          mainAxisSpacing: 20,
+                          crossAxisSpacing: 5,
+                        )
+                      : SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: StyleSetting.crossAxisCountInDetailPage.value!,
+                          mainAxisSpacing: 20,
+                          crossAxisSpacing: 5,
+                          childAspectRatio: UIConfig.detailsPageGridViewCardAspectRatio,
+                        ),
+                ),
         ),
       ),
     );
@@ -1300,70 +1408,5 @@ class DetailsPage extends StatelessWidget with Scroll2TopPageMixin {
         },
       ),
     );
-  }
-}
-
-class _GalleryTags extends StatelessWidget {
-  final LinkedHashMap<String, List<GalleryTag>> tagList;
-  final int gid;
-  final String token;
-  final String apikey;
-
-  const _GalleryTags({
-    Key? key,
-    required this.tagList,
-    required this.gid,
-    required this.token,
-    required this.apikey,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: tagList.entries
-          .map(
-            (entry) => Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildCategoryTag(entry.key),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Wrap(
-                    spacing: 5,
-                    runSpacing: 5,
-                    children: _buildTags(entry.value),
-                  ),
-                ),
-              ],
-            ).marginOnly(top: 10),
-          )
-          .toList(),
-    );
-  }
-
-  Widget _buildCategoryTag(String category) {
-    return EHTag(
-      tag: GalleryTag(
-        tagData: TagData(
-          namespace: 'rows',
-          key: category,
-          tagName: PreferenceSetting.enableTagZHTranslation.isTrue ? LocaleConsts.tagNamespace[category] : null,
-        ),
-      ),
-      addNameSpaceColor: true,
-    );
-  }
-
-  List<Widget> _buildTags(List<GalleryTag> tags) {
-    return tags
-        .map((tag) => EHTag(
-              tag: tag,
-              enableTapping: true,
-              gid: gid,
-              token: token,
-              apikey: apikey,
-              forceNewRoute: true,
-            ))
-        .toList();
   }
 }

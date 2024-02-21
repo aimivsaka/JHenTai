@@ -219,45 +219,48 @@ class EHSpiderParser {
 
   // In some page like favorite page or ranklist page, infos like uploader, pageCount, favorited info, rated info is
   // missing. So we need to extract these infos in details page.
-  static Map<String, dynamic> detailPage2GalleryAndDetailAndApikey(Headers headers, dynamic data) {
+  static ({GalleryDetail galleryDetails, String apikey}) detailPage2GalleryAndDetailAndApikey(Headers headers, dynamic data) {
     Document document = parse(data as String);
 
-    String galleryUrl = document.querySelector('#gd5 > p > a')!.attributes['href']!.split('?')[0];
-    List<String>? parts = galleryUrl.split('/');
+    GalleryUrl galleryUrl = GalleryUrl.parse(document.querySelector('#gd5 > p > a')!.attributes['href']!.split('?')[0]);
+    String rawTitle = document.querySelector('#gn')!.text;
+    String japaneseTitle = document.querySelector('#gj')!.text;
     String coverStyle = document.querySelector('#gd1 > div')?.attributes['style'] ?? '';
     RegExpMatch coverMatch = RegExp(r'width:(\d+)px.*height:(\d+)px.*url\((.*)\)').firstMatch(coverStyle)!;
-    LinkedHashMap<String, List<GalleryTag>> tags = _detailPageDocument2Tags(document);
-
-    Gallery gallery = Gallery(
-      gid: int.parse(parts[4]),
-      token: parts[5],
-      title: document.querySelector('#gn')?.text ?? '',
-      category: document.querySelector('#gdc > .cs')?.text ?? '',
-      cover: GalleryImage(
-        url: coverMatch.group(3)!,
-        height: double.parse(coverMatch.group(2)!),
-        width: double.parse(coverMatch.group(1)!),
-      ),
-      pageCount: int.parse((document.querySelector('#gdd > table > tbody > tr:nth-child(5) > .gdt2')?.text ?? '').split(' ')[0]),
-      rating: _parseGalleryRating(document.querySelector('#grt2')!),
-      hasRated: document.querySelector('#rating_image.ir')!.attributes['class']!.split(' ').length > 1 ? true : false,
-      isFavorite: document.querySelector('#fav > .i') != null ? true : false,
-      favoriteTagIndex: _parseFavoriteTagIndexByOffset(document),
-      favoriteTagName: document.querySelector('#fav > .i')?.attributes['style'] == null ? null : document.querySelector('#favoritelink')?.text,
-      galleryUrl: GalleryUrl.parse(galleryUrl),
-      tags: tags,
-      language: tags['language']?[0].tagData.key,
-      uploader: document.querySelector('#gdn > a')?.text ?? '',
-      publishTime: document.querySelector('#gdd > table > tbody > tr > .gdt2')?.text ?? '',
-      isExpunged: (document.querySelector('#gdd > table > tbody > tr:nth-child(2) > .gdt2')?.text ?? '').contains('Expunged'),
+    GalleryImage cover = GalleryImage(
+      url: coverMatch.group(3)!,
+      height: double.parse(coverMatch.group(2)!),
+      width: double.parse(coverMatch.group(1)!),
     );
+    String category = document.querySelector('#gdc > .cs')!.text;
+    int pageCount = int.parse((document.querySelector('#gdd > table > tbody > tr:nth-child(5) > .gdt2')?.text ?? '').split(' ')[0]);
+    double rating = _parseGalleryRating(document.querySelector('#grt2')!);
+    int? favoriteTagIndex = _parseFavoriteTagIndexByOffset(document);
+    String? favoriteTagName = document.querySelector('#fav > .i')?.attributes['style'] == null ? null : document.querySelector('#favoritelink')?.text;
+    LinkedHashMap<String, List<GalleryTag>> tags = _detailPageDocument2Tags(document);
+    String language = document.querySelector('#gdd > table > tbody')?.children[3].children[1].nodes[0].text?.trim() ?? '';
+    String? uploader = document.querySelector('#gdn > a')?.text;
+    String publishTime = document.querySelector('#gdd > table > tbody > tr > .gdt2')?.text ?? '';
+    bool isExpunged = (document.querySelector('#gdd > table > tbody > tr:nth-child(2) > .gdt2')?.text ?? '').contains('Expunged');
 
     GalleryDetail galleryDetail = GalleryDetail(
-      rawTitle: document.querySelector('#gn')!.text,
-      japaneseTitle: document.querySelector('#gj')!.text,
-      language: document.querySelector('#gdd > table > tbody')?.children[3].children[1].nodes[0].text?.trim() ?? '',
-      ratingCount: int.parse(document.querySelector('#rating_count')?.text ?? '0'),
+      galleryUrl: galleryUrl,
+      rawTitle: rawTitle,
+      japaneseTitle: isEmptyOrNull(japaneseTitle) ? null : japaneseTitle,
+      category: category,
+      cover: cover,
+      pageCount: pageCount,
+      rating: rating,
       realRating: _parseGalleryDetailsRealRating(document),
+      hasRated: document.querySelector('#rating_image')!.attributes['class']!.split(' ').length > 1 ? true : false,
+      favoriteTagIndex: favoriteTagIndex,
+      favoriteTagName: favoriteTagName,
+      language: language,
+      uploader: uploader,
+      publishTime: publishTime,
+      isExpunged: isExpunged,
+      tags: tags,
+      ratingCount: int.parse(document.querySelector('#rating_count')?.text ?? '0'),
       size: document.querySelector('#gdd > table > tbody')?.children[4].children[1].text ?? '',
       favoriteCount: _parseGalleryDetailsFavoriteCount(document),
       torrentCount: RegExp(r'\d+').firstMatch(document.querySelector('#gd5')?.children[2].querySelector('a')?.text ?? '')?.group(0) ?? '0',
@@ -265,7 +268,6 @@ class EHSpiderParser {
       archivePageUrl: document.querySelector('#gd5')?.children[1].querySelector('a')?.attributes['onclick']?.split('\'')[1] ?? '',
       parentGalleryUrl: GalleryUrl.tryParse(document.querySelector('#gdd > table > tbody > tr:nth-child(1) > .gdt2 > a')?.attributes['href'] ?? ''),
       childrenGallerys: _detailPageDocument2ChildrenGallerys(document),
-      fullTags: tags,
       comments: _parseGalleryDetailsComments(document.querySelectorAll('#cdiv > .c1')),
       thumbnails: _detailPageDocument2Thumbnails(document),
       thumbnailsPageCount: _detailPageDocument2ThumbnailsPageCount(document),
@@ -274,11 +276,7 @@ class EHSpiderParser {
     String script = document.querySelector('.gm')?.previousElementSibling?.previousElementSibling?.text ?? '';
     String apikey = RegExp(r'var apikey = "(\w+)"').firstMatch(script)?.group(1) ?? '';
 
-    return {
-      'gallery': gallery,
-      'galleryDetails': galleryDetail,
-      'apikey': apikey,
-    };
+    return (galleryDetails: galleryDetail, apikey: apikey);
   }
 
   static LinkedHashMap<String, List<GalleryTag>> _detailPageDocument2Tags(Document document) {
@@ -394,14 +392,15 @@ class EHSpiderParser {
       japaneseTitle: map['title_jpn'],
       category: map['category'],
       cover: GalleryImage(url: map['thumb']),
-      uploader: map['uploader'],
-      publishTime: DateTime.fromMillisecondsSinceEpoch(int.parse(map['posted']) * 1000).toString(),
       pageCount: int.parse(map['filecount']),
-      size: byte2String(map['filesize'].toDouble()),
-      isExpunged: map['expunged'],
       rating: double.parse(map['rating']),
+      language: language ?? 'Japanese',
+      uploader: map['uploader'] != '(Disowned)' ? map['uploader'] : null,
+      publishTime: DateTime.fromMillisecondsSinceEpoch(int.parse(map['posted']) * 1000).toString(),
+      isExpunged: map['expunged'],
+      size: byte2String(map['filesize'].toDouble()),
+      torrentCount: int.parse(map['torrentcount']),
       tags: tagsMap,
-      language: language,
     );
   }
 
@@ -855,24 +854,19 @@ class EHSpiderParser {
 
   static Gallery _parseMinimalGallery(Element tr) {
     GalleryImage? cover = _parseMinimalGalleryCover(tr);
-    String galleryUrl = tr.querySelector('.gl3m.glname > a')?.attributes['href'] ?? '';
-    List<String> parts = galleryUrl.split('/');
 
     Gallery gallery = Gallery(
-      gid: int.parse(parts[4]),
-      token: parts[5],
+      galleryUrl: GalleryUrl.parse(tr.querySelector('.gl3m.glname > a')?.attributes['href'] ?? ''),
       title: tr.querySelector('.glink')?.text ?? '',
       category: tr.querySelector('.gl1m.glcat > div')?.text ?? '',
       cover: cover!,
       pageCount: null,
       rating: _parseGalleryRating(tr),
       hasRated: tr.querySelector('.gl4m > .ir')!.attributes['class']!.split(' ').length > 1 ? true : false,
-      isFavorite: tr.querySelector('.gl2m > div:nth-child(2) > [id][style]') != null ? true : false,
       favoriteTagIndex: _parseMinimalGalleryFavoriteTagIndex(tr),
       favoriteTagName: tr.querySelector('.gl2m > div:nth-child(2) > [id][style]')?.attributes['title'],
-      galleryUrl: GalleryUrl.parse(galleryUrl),
       tags: LinkedHashMap<String, List<GalleryTag>>(),
-      uploader: tr.querySelector('.gl5m.glhide > div > a')?.text ?? '',
+      uploader: tr.querySelector('.gl5m.glhide > div > a')?.text,
       publishTime: tr.querySelector('.gl2m > div:nth-child(2)')?.text ?? '',
       isExpunged: tr.querySelector('.gl2m > div:nth-child(2) > s') != null,
     );
@@ -883,25 +877,20 @@ class EHSpiderParser {
   static Gallery _parseCompactGallery(Element tr) {
     LinkedHashMap<String, List<GalleryTag>> tags = _parseCompactGalleryTags(tr);
     GalleryImage? cover = _parseCompactGalleryCover(tr);
-    String galleryUrl = tr.querySelector('.gl3c.glname > a')?.attributes['href'] ?? '';
-    List<String> parts = galleryUrl.split('/');
 
     Gallery gallery = Gallery(
-      gid: int.parse(parts[4]),
-      token: parts[5],
+      galleryUrl: GalleryUrl.parse(tr.querySelector('.gl3c.glname > a')?.attributes['href'] ?? ''),
       title: tr.querySelector('.glink')?.text ?? '',
       category: tr.querySelector('.cn')?.text ?? '',
       cover: cover!,
       pageCount: _parseCompactGalleryPageCount(tr),
       rating: _parseGalleryRating(tr),
       hasRated: tr.querySelector('.gl2c > div:nth-child(2) > .ir')!.attributes['class']!.split(' ').length > 1 ? true : false,
-      isFavorite: tr.querySelector('.gl2c > div:nth-child(2) > [id][style]') != null ? true : false,
       favoriteTagIndex: _parseCompactGalleryFavoriteTagIndex(tr),
       favoriteTagName: tr.querySelector('.gl2c > div:nth-child(2) > [id][style]')?.attributes['title'],
-      galleryUrl: GalleryUrl.parse(galleryUrl),
       tags: tags,
       language: tags['language']?[0].tagData.key,
-      uploader: tr.querySelector('.gl4c.glhide > div > a')?.text ?? '',
+      uploader: tr.querySelector('.gl4c.glhide > div > a')?.text,
       publishTime: tr.querySelector('.gl2c > div:nth-child(2) > [id]')?.text ?? '',
       isExpunged: tr.querySelector('.gl2c > div:nth-child(2) > [id] > s') != null,
     );
@@ -912,25 +901,20 @@ class EHSpiderParser {
   static Gallery _parseExtendedGallery(Element tr) {
     LinkedHashMap<String, List<GalleryTag>> tags = _parseExtendedGalleryTags(tr);
     GalleryImage? cover = _parseExtendedGalleryCover(tr);
-    String galleryUrl = tr.querySelector('.gl1e > div > a')?.attributes['href'] ?? '';
-    List<String> parts = galleryUrl.split('/');
 
     Gallery gallery = Gallery(
-      gid: int.parse(parts[4]),
-      token: parts[5],
+      galleryUrl: GalleryUrl.parse(tr.querySelector('.gl1e > div > a')?.attributes['href'] ?? ''),
       title: tr.querySelector('.glink')?.text ?? '',
       category: tr.querySelector('.cn')?.text ?? '',
       cover: cover!,
       pageCount: _parseExtendedGalleryPageCount(tr),
       rating: _parseGalleryRating(tr),
       hasRated: tr.querySelector('.gl3e > .ir')!.attributes['class']!.split(' ').length > 1 ? true : false,
-      isFavorite: tr.querySelector('.gl3e > [id][style]') != null ? true : false,
       favoriteTagIndex: _parseExtendedGalleryFavoriteTagIndex(tr),
       favoriteTagName: tr.querySelector('.gl3e > [id][style]')?.attributes['title'],
-      galleryUrl: GalleryUrl.parse(galleryUrl),
       tags: tags,
       language: tags['language']?[0].tagData.key,
-      uploader: tr.querySelector('.gl3e > div > a')?.text ?? '',
+      uploader: tr.querySelector('.gl3e > div > a')?.text,
       publishTime: tr.querySelector('.gl3e > div[id]')?.text ?? '',
       isExpunged: tr.querySelector('.gl3e > div[id] > s') != null,
     );
@@ -940,22 +924,17 @@ class EHSpiderParser {
 
   static Gallery _parseThumbnailGallery(Element div) {
     GalleryImage? cover = _parseThumbnailGalleryCover(div);
-    String galleryUrl = div.querySelector('a')?.attributes['href'] ?? '';
-    List<String> parts = galleryUrl.split('/');
 
     Gallery gallery = Gallery(
-      gid: int.parse(parts[4]),
-      token: parts[5],
+      galleryUrl: GalleryUrl.parse(div.querySelector('a')?.attributes['href'] ?? ''),
       title: div.querySelector('.glink')?.text ?? '',
       category: div.querySelector('.cs')?.text ?? '',
       cover: cover!,
       pageCount: _parseThumbnailGalleryPageCount(div),
       rating: _parseGalleryRating(div),
       hasRated: div.querySelector('.gl5t > div > .ir')!.attributes['class']!.split(' ').length > 1 ? true : false,
-      isFavorite: div.querySelector('.gl5t > div > [id][style]') != null ? true : false,
       favoriteTagIndex: _parseThumbnailGalleryFavoriteTagIndex(div),
       favoriteTagName: div.querySelector('.gl5t > div > [id][style]')?.attributes['title'],
-      galleryUrl: GalleryUrl.parse(galleryUrl),
       tags: LinkedHashMap(),
       publishTime: div.querySelector('.gl5t > div > div[id]')?.text ?? '',
       isExpunged: div.querySelector('.gl5t > div > div[id] > s') != null,

@@ -37,6 +37,7 @@ import '../database/dao/gallery_image_dao.dart';
 import '../exception/cancel_exception.dart';
 import '../exception/eh_site_exception.dart';
 import '../model/gallery.dart';
+import '../model/gallery_detail.dart';
 import '../model/gallery_image.dart';
 import '../network/eh_request.dart';
 import '../pages/download/grid/mixin/grid_download_page_service_mixin.dart';
@@ -233,13 +234,12 @@ class GalleryDownloadService extends GetxController with GridBasePageServiceMixi
 
     GalleryDownloadedData newGallery;
     try {
-      Map<String, dynamic> map = await retry(
+      ({GalleryDetail galleryDetails, String apikey}) detailPageInfo = await retry(
         () => EHRequest.requestDetailPage(galleryUrl: newVersionGalleryUrl.url, parser: EHSpiderParser.detailPage2GalleryAndDetailAndApikey),
         retryIf: (e) => e is DioException,
         maxAttempts: _maxRetryTimes,
       );
-      Gallery gallery = map['gallery'];
-      newGallery = gallery.toGalleryDownloadedData(downloadOriginalImage: oldGallery.downloadOriginalImage);
+      newGallery = detailPageInfo.galleryDetails.toGalleryDownloadedData(downloadOriginalImage: oldGallery.downloadOriginalImage);
     } on DioException catch (e) {
       Log.info('${'updateGalleryError'.tr}, reason: ${e.message}');
       snack('updateGalleryError'.tr, e.message ?? '', longDuration: true);
@@ -269,9 +269,9 @@ class GalleryDownloadService extends GetxController with GridBasePageServiceMixi
   Future<void> reDownloadGallery(GalleryDownloadedData gallery) async {
     Log.info('Re-download gallery: ${gallery.gid}');
 
-    for (int serialNo = 0; serialNo < gallery.pageCount; serialNo++) {
-      await reDownloadImage(gallery.gid, serialNo);
-    }
+    await deleteGallery(gallery);
+
+    downloadGallery(gallery);
   }
 
   Future<void> reDownloadImage(int gid, int serialNo) async {
@@ -285,7 +285,9 @@ class GalleryDownloadService extends GetxController with GridBasePageServiceMixi
 
     Log.info('Re-download image, gid: $gid, index: $serialNo');
 
-    galleryDownloadInfo.downloadProgress.curCount--;
+    if (galleryDownloadInfo.downloadProgress.hasDownloaded[serialNo] == true) {
+      galleryDownloadInfo.downloadProgress.curCount--;
+    }
     galleryDownloadInfo.downloadProgress.hasDownloaded[serialNo] = false;
     galleryDownloadInfo.speedComputer.resetProgress(serialNo);
     galleryDownloadInfo.speedComputer.start();
@@ -850,7 +852,7 @@ class GalleryDownloadService extends GetxController with GridBasePageServiceMixi
       galleryDownloadInfo.images[serialNo] = image;
 
       Log.download('Parse image url success, index: $serialNo, url: ${image.url}');
-      
+
       /// Next step: download image
       return _submitTask(
         gid: gallery.gid,
@@ -1178,7 +1180,7 @@ class GalleryDownloadService extends GetxController with GridBasePageServiceMixi
   }
 
   void _clearGalleryInfoInMemory(GalleryDownloadedData gallery) {
-    gallerys.remove(gallery);
+    gallerys.removeWhere((g) => g.gid == gallery.gid);
     GalleryDownloadInfo? galleryDownloadInfo = galleryDownloadInfos.remove(gallery.gid);
     galleryDownloadInfo?.speedComputer.dispose();
 
