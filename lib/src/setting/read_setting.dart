@@ -46,7 +46,7 @@ class ReadSetting {
   static RxBool enableTapDragToScaleUp = false.obs;
   static RxBool enableBottomMenu = false.obs;
   static Rx<DeviceDirection> deviceDirection = DeviceDirection.followSystem.obs;
-  static Rx<ReadDirection> readDirection = GetPlatform.isMobile ? ReadDirection.top2bottomList.obs : ReadDirection.left2rightList.obs;
+  static Rx<ReadDirection> readDirection = GetPlatform.isMobile ? ReadDirection.right2leftSinglePageFitWidth.obs : ReadDirection.left2rightList.obs;
   static RxInt imageRegionWidthRatio = 100.obs;
   static RxBool useThirdPartyViewer = false.obs;
   static RxnString thirdPartyViewerPath = RxnString();
@@ -54,7 +54,7 @@ class ReadSetting {
   static Rx<AutoModeStyle> autoModeStyle = AutoModeStyle.turnPage.obs;
   static Rx<TurnPageMode> turnPageMode = TurnPageMode.adaptive.obs;
   static RxInt preloadDistance = 1.obs;
-  static RxInt preloadPageCount = 1.obs;
+  static RxInt preloadPageCount = 2.obs;
   static RxBool displayFirstPageAlone = true.obs;
   static RxBool reverseTurnPageDirection = false.obs;
   static RxBool disablePageTurningOnTap = false.obs;
