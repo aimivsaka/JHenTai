@@ -24,7 +24,7 @@ class ReadSetting with JHLifeCircleBeanWithConfigStorage implements JHLifeCircle
   RxBool enableTapDragToScaleUp = false.obs;
   RxBool enableBottomMenu = false.obs;
   Rx<DeviceDirection> deviceDirection = DeviceDirection.followSystem.obs;
-  Rx<ReadDirection> readDirection = GetPlatform.isMobile ? ReadDirection.top2bottomList.obs : ReadDirection.left2rightList.obs;
+  Rx<ReadDirection> readDirection = GetPlatform.isMobile ? ReadDirection.right2leftSinglePage.obs : ReadDirection.left2rightList.obs;
   RxBool notchOptimization = false.obs;
   RxInt imageRegionWidthRatio = 100.obs;
   RxInt gestureRegionWidthRatio = 60.obs;
