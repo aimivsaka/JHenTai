@@ -125,7 +125,8 @@ class ArchiveDownloadService extends GetxController with GridBasePageServiceMixi
         return;
       }
 
-      _generateComicInfoInDisk(archive);
+      // I don't need ComicInfo for archive tho
+      //_generateComicInfoInDisk(archive);
     }
 
     log.info('Begin to handle archive: ${archive.title}, original: ${archive.isOriginal}, parseSource: ${archive.parseSource}');
