@@ -635,7 +635,7 @@ class DetailsPageLogic extends GetxController with LoginRequiredMixin, Scroll2To
     toast('ratingSuccess'.tr, isCenter: false);
   }
 
-  Future<void> handleTapArchive(BuildContext context) async {
+  Future<void> handleTapArchive(BuildContext context, {bool useExternalDownloader = false}) async {
     ArchiveStatus? archiveStatus = archiveDownloadService.archiveDownloadInfos[state.galleryUrl.gid]?.archiveStatus;
 
     /// new download
@@ -680,7 +680,7 @@ class DetailsPageLogic extends GetxController with LoginRequiredMixin, Scroll2To
         tagRefreshTime: DateTime.now().toString(),
         parseSource: result.useBot ? ArchiveParseSource.bot.code : ArchiveParseSource.official.code,
       );
-      archiveDownloadService.downloadArchive(archive);
+      archiveDownloadService.downloadArchive(archive, useExternalDownloader: useExternalDownloader);
 
       updateGlobalGalleryStatus();
 
@@ -695,13 +695,13 @@ class DetailsPageLogic extends GetxController with LoginRequiredMixin, Scroll2To
       bool? ok = await showDialog(context: context, builder: (_) => const ReUnlockDialog());
       if (ok ?? false) {
         await archiveDownloadService.cancelArchive(archive.gid);
-        await archiveDownloadService.downloadArchive(archive, resume: true, reParse: true);
+        await archiveDownloadService.downloadArchive(archive, useExternalDownloader: useExternalDownloader, resume: true, reParse: true);
       }
       return;
     }
 
     if (archiveStatus == ArchiveStatus.paused) {
-      return archiveDownloadService.resumeDownloadArchive(archive.gid);
+      return archiveDownloadService.resumeDownloadArchive(archive.gid, useExternalDownloader: useExternalDownloader);
     }
 
     if (ArchiveStatus.unlocking.code <= archiveStatus.code && archiveStatus.code < ArchiveStatus.downloaded.code) {

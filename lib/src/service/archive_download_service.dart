@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:android_intent_plus/android_intent.dart';
 import 'package:collection/collection.dart';
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
@@ -116,7 +117,7 @@ class ArchiveDownloadService extends GetxController with GridBasePageServiceMixi
     return archiveDownloadInfos.containsKey(gid);
   }
 
-  Future<void> downloadArchive(ArchiveDownloadedData archive, {bool resume = false, bool reParse = false}) async {
+  Future<void> downloadArchive(ArchiveDownloadedData archive, {bool useExternalDownloader = false, bool resume = false, bool reParse = false}) async {
     await _ensureDownloadDirExists();
 
     if (!resume) {
@@ -146,10 +147,41 @@ class ArchiveDownloadService extends GetxController with GridBasePageServiceMixi
     await _getDownloadUrl(archive, reParse: reParse);
 
     /// step 4: do download
+    if (Platform.isAndroid && useExternalDownloader) {
+      if (!_isTaskInStatus(archive.gid, [ArchiveStatus.parsedDownloadUrl])) {
+        return;
+      }
+
+      final String title = archive.sanitizedTitle ?? _computeSanitizedArchiveTitle(archive.title, utf8.encode('.zip').length);
+      final AndroidIntent intent = AndroidIntent(
+        package: 'com.gianlu.aria2app',
+        componentName: 'com.gianlu.aria2app.activities.AddUriActivity',
+        action: 'android.intent.action.VIEW',
+        arguments: {
+          'uri': archiveDownloadInfos[archive.gid]!.downloadUrl!,
+          'filename': '$title.zip',
+        },
+      );
+
+      try {
+        await intent.launch();
+      } catch (e, stack) {
+        log.error('Launch Aria2App failed', e, stack);
+        snack('archiveError'.tr, e.toString(), isShort: true);
+        return pauseDownloadArchive(archive.gid);
+      }
+
+      if (_isTaskInStatus(archive.gid, [ArchiveStatus.parsedDownloadUrl])) {
+        await _updateArchiveStatus(archive.gid, ArchiveStatus.completed);
+      }
+      return;
+    }
     await _doDownloadArchiveViaMultiIsolate(archive);
 
-    /// step 5: unpacking files
-    await _unpackingArchive(archive);
+    // Keep the ZIP without unpacking, but release the download queue.
+    if (_isTaskInStatus(archive.gid, [ArchiveStatus.downloaded])) {
+      await _tryWakeWaitingTasks();
+    }
   }
 
   Future<void> deleteArchive(int gid) async {
@@ -201,7 +233,7 @@ class ArchiveDownloadService extends GetxController with GridBasePageServiceMixi
     await Future.wait(archives.map((a) => a.gid).map(resumeDownloadArchive).toList());
   }
 
-  Future<void> resumeDownloadArchive(int gid) async {
+  Future<void> resumeDownloadArchive(int gid, {bool useExternalDownloader = false}) async {
     ArchiveDownloadedData? archive = archives.firstWhereOrNull((archive) => archive.gid == gid);
     if (archive != null) {
       ArchiveDownloadInfo archiveDownloadInfo = archiveDownloadInfos[archive.gid]!;
@@ -213,7 +245,7 @@ class ArchiveDownloadService extends GetxController with GridBasePageServiceMixi
 
       await _updateArchiveStatus(gid, ArchiveStatus.unlocking);
 
-      downloadArchive(archive, resume: true);
+      downloadArchive(archive, useExternalDownloader: useExternalDownloader, resume: true);
     }
   }
 
