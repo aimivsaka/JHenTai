@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:android_intent_plus/android_intent.dart';
 import 'package:collection/collection.dart';
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
@@ -112,7 +113,8 @@ class ArchiveDownloadService extends GetxController with GridBasePageServiceMixi
     return archiveDownloadInfos.containsKey(gid);
   }
 
-  Future<void> downloadArchive(ArchiveDownloadedData archive, {bool resume = false, bool reParse = false}) async {
+  Future<void> downloadArchive(ArchiveDownloadedData archive,
+      {bool useExternalDownloader = false, bool resume = false, bool reParse = false}) async {
     await _ensureDownloadDirExists();
 
     if (!resume) {
@@ -139,10 +141,29 @@ class ArchiveDownloadService extends GetxController with GridBasePageServiceMixi
     await _getDownloadUrl(archive, reParse: reParse);
 
     /// step 4: do download
+    // HACK: use Aria2App to download archive on Android if set useExternalDownloader
+    if (Platform.isAndroid) {
+      if (useExternalDownloader) {
+        final url = archiveDownloadInfos[archive.gid]!.downloadUrl!;
+        final filename = '${archive.title}.zip';
+        final intent = AndroidIntent(
+            package: 'com.gianlu.aria2app',
+            componentName: 'com.gianlu.aria2app.activities.AddUriActivity',
+            action: 'android.intent.action.VIEW',
+            arguments: {
+              "uri": url,
+              "filename": filename,
+            });
+        await intent.launch();
+        await _updateArchiveStatus(archive.gid, ArchiveStatus.completed);
+        return;
+      }
+    }
     await _doDownloadArchiveViaMultiIsolate(archive);
 
     /// step 5: unpacking files
-    await _unpackingArchive(archive);
+    // NOTE: I don't need this. (BTW, Who need unpacked images if had zip file already :D)
+    //await _unpackingArchive(archive);
   }
 
   Future<void> deleteArchive(int gid) async {

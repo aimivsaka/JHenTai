@@ -630,8 +630,10 @@ class DetailsPageLogic extends GetxController with LoginRequiredMixin, Scroll2To
     toast('ratingSuccess'.tr, isCenter: false);
   }
 
-  Future<void> handleTapArchive(BuildContext context) async {
-    ArchiveStatus? archiveStatus = archiveDownloadService.archiveDownloadInfos[state.galleryUrl.gid]?.archiveStatus;
+  Future<void> handleTapArchive(BuildContext context,
+      {bool useExternalDownloader = false}) async {
+    ArchiveStatus? archiveStatus = archiveDownloadService
+        .archiveDownloadInfos[state.galleryUrl.gid]?.archiveStatus;
 
     /// new download
     if (archiveStatus == null) {
@@ -673,7 +675,7 @@ class DetailsPageLogic extends GetxController with LoginRequiredMixin, Scroll2To
         tagRefreshTime: DateTime.now().toString(),
         parseSource: result.useBot ? ArchiveParseSource.bot.code : ArchiveParseSource.official.code,
       );
-      archiveDownloadService.downloadArchive(archive);
+      archiveDownloadService.downloadArchive(archive, useExternalDownloader: useExternalDownloader);
 
       updateGlobalGalleryStatus();
 
